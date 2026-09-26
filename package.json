@@ -4,6 +4,7 @@
   "private": true,
   "description": "Local LLM benchmarking application",
   "scripts": {
-    "start": "node src/server.js"
+    "start": "node src/server.js",
+    "test": "node --test \"test/*.test.js\""
   }
 }
