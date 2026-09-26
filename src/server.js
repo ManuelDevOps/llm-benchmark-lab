@@ -537,8 +537,15 @@ const server = http.createServer(async (req, res) => {
   res.end("Not found");
 });
 
-server.listen(PORT, HOST, () => {
-  console.log(
-    `LLM Benchmark Lab running at http://${HOST}:${PORT}`
-  );
-});
+if (require.main === module) {
+  server.listen(PORT, HOST, () => {
+    console.log(
+      `LLM Benchmark Lab running at http://${HOST}:${PORT}`
+    );
+  });
+}
+
+module.exports = {
+  server,
+  HOST
+};

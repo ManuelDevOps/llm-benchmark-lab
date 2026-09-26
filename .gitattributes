@@ -1,6 +1,7 @@
 # Application source: stable LF on every platform
 src/** text eol=lf
 public/** text eol=lf
+test/** text eol=lf
 package.json text eol=lf
 .gitignore text eol=lf
 .gitattributes text eol=lf
@@ -9,3 +10,4 @@ package.json text eol=lf
 # preserve their existing bytes exactly, including line endings
 benchmarks/** -text
 LICENSE text eol=lf
+README.md text eol=lf
