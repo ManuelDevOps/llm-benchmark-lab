@@ -1,5 +1,7 @@
 # LLM Benchmark Lab
 
+[![CI](https://github.com/ManuelDevOps/llm-benchmark-lab/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/ManuelDevOps/llm-benchmark-lab/actions/workflows/ci.yml)
+
 LLM Benchmark Lab is a local-first web application for running reproducible benchmarks against models available through Ollama.
 
 It discovers Ollama models, runs fixed benchmark prompts, evaluates supported outputs, records performance metrics, and stores detailed run artefacts locally.
