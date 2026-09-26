@@ -37,6 +37,30 @@ const frozenPackFiles = new Map([
   [
     "benchmarks/packs/bugfix-v1/hidden-tests-v1.test.js",
     "B633D2797B387B53C020A76EB92FBC9AA27B50F7820D60021051AAC30B5741AB"
+  ],
+  [
+    "benchmarks/packs/bugfix-v1/spec-v1.md",
+    "671A036AF6444B7522A119B791B4656B8418809BF33FA5905C3A3E8A0BF756A4"
+  ],
+  [
+    "benchmarks/packs/bugfix-v1/defect-registry-v1.md",
+    "AA5544293DEC00368979C549EACD31532EE97A3E724EB44183F7AC7932A08095"
+  ],
+  [
+    "benchmarks/packs/bugfix-v1/scoring-rubric-v1.md",
+    "D8DBC7EA396FD8905F8225F9F652ED0EAB34B1BC8D14667A502E310BC1095B31"
+  ],
+  [
+    "benchmarks/packs/bugfix-v1/execution-procedure-v1.md",
+    "4F5A2B7F9D881B6A6A865E9910F73E98850D7F9CF7B4C10CFD74702471C91278"
+  ],
+  [
+    "benchmarks/packs/bugfix-v1/baseline-validation-v1.md",
+    "5467DE35429E26FF9B1B756570BFC5B1DA874E54128B000F78F580279B11AA7C"
+  ],
+  [
+    "benchmarks/packs/bugfix-v1/reference-v1.js",
+    "D628CAFE075ECD35D81330547B6C07F025481CB2E59DA83DA4A2DDD5C8DCC8A9"
   ]
 ]);
 
