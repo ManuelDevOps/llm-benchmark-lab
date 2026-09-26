@@ -2,6 +2,7 @@
 src/** text eol=lf
 public/** text eol=lf
 test/** text eol=lf
+.github/** text eol=lf
 package.json text eol=lf
 .gitignore text eol=lf
 .gitattributes text eol=lf
