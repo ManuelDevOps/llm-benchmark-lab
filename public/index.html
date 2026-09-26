@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LLM Benchmark Lab</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <main class="container">
+    <header class="page-header">
+      <div>
+        <h1>LLM Benchmark Lab</h1>
+        <p>Local model benchmarking environment</p>
+      </div>
+
+      <div id="ollamaStatus" class="status status-loading">
+        Checking Ollama...
+      </div>
+    </header>
+
+    <section class="card">
+      <h2>Model</h2>
+
+      <label for="modelSelect">Installed Ollama model</label>
+
+      <select id="modelSelect" disabled>
+        <option>Loading models...</option>
+      </select>
+
+      <div id="modelDetails" class="model-details hidden">
+        <div class="metric">
+          <span>Parameters</span>
+          <strong id="modelParameters">-</strong>
+        </div>
+
+        <div class="metric">
+          <span>Quantization</span>
+          <strong id="modelQuantization">-</strong>
+        </div>
+
+        <div class="metric">
+          <span>Size</span>
+          <strong id="modelSize">-</strong>
+        </div>
+
+        <div class="metric">
+          <span>Context</span>
+          <strong id="modelContext">-</strong>
+        </div>
+
+        <div class="metric metric-wide">
+          <span>Capabilities</span>
+          <strong id="modelCapabilities">-</strong>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Benchmark</h2>
+
+      <label for="benchmarkSelect">Test</label>
+
+      <select id="benchmarkSelect" disabled>
+        <option>Benchmarks will appear here</option>
+      </select>
+
+      <button id="runButton" disabled>
+        Run benchmark
+      </button>
+    </section>
+
+    <section class="card">
+      <h2>Result</h2>
+
+      <p id="resultStatus" class="placeholder">
+        No benchmark has been executed yet.
+      </p>
+
+      <pre id="resultOutput" class="result-output hidden"></pre>
+    </section>
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>

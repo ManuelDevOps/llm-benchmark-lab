@@ -1,0 +1,14 @@
+# Generated benchmark runs, validation artefacts, backups and logs
+results/
+
+# Local forensic / working extracts
+history-search.txt
+benchmark-execution-inputs.txt
+bugfix-evaluator-inputs.txt
+
+# Node dependencies
+node_modules/
+
+# Local environment files
+.env
+.env.*

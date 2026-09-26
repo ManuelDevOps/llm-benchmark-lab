@@ -1,0 +1,22 @@
+{
+    "schemaVersion":  1,
+    "id":  "cart-total-v1",
+    "name":  "Cart Total v1",
+    "category":  "code-generation",
+    "description":  "Generate production-style JavaScript from requirements and evaluate correctness, robustness and engineering judgement.",
+    "sourceDir":  "packs/cart-total-v1",
+    "contractFile":  "benchmark-contract-v1.md",
+    "status":  "frozen",
+    "scoreNamespace":  "cart-total-v1",
+    "inference":  {
+                      "endpoint":  "/api/generate",
+                      "stream":  false,
+                      "num_ctx":  32768,
+                      "temperature":  0,
+                      "seed":  42,
+                      "num_predict":  4096,
+                      "keep_alive":  0,
+                      "raw":  false
+                  },
+    "appPromptFile":  "benchmarks/assets/cart-total-v1-prompt.txt"
+}

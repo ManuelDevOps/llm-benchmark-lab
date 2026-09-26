@@ -1,0 +1,11 @@
+# Application source: stable LF on every platform
+src/** text eol=lf
+public/** text eol=lf
+package.json text eol=lf
+.gitignore text eol=lf
+.gitattributes text eol=lf
+
+# Frozen benchmark definitions and inputs:
+# preserve their existing bytes exactly, including line endings
+benchmarks/** -text
+LICENSE text eol=lf

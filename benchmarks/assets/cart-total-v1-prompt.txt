@@ -1,0 +1,20 @@
+﻿You are implementing code for a real production application.
+
+Write a JavaScript function:
+
+calculateCartTotal(items, discountPercent)
+
+Requirements:
+- `items` represents the products in a shopping cart.
+- Each item contains `unitPrice` and `quantity`.
+- `discountPercent` represents a percentage discount applied to the whole cart.
+- Validate the inputs rigorously and fail fast with clear errors when input is invalid.
+- Return the final monetary total rounded to two decimal places.
+- Do not use external libraries.
+- The implementation should be robust enough for a real application.
+
+Think carefully about edge cases and JavaScript numeric behaviour.
+
+After the implementation, include a set of Node.js `assert` tests that you believe are necessary to verify the function properly.
+
+Do not ask me for clarification. Make reasonable engineering decisions and explain any assumptions briefly.

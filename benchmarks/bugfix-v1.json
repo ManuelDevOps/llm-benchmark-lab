@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "bugfix-v1",
+  "name": "Bugfix v1",
+  "category": "debugging",
+  "description": "Inspect an existing JavaScript project, diagnose defects and produce minimal corrective patches without regressions.",
+  "sourceDir": "packs/bugfix-v1",
+  "contractFile": "benchmark-contract-v1.md",
+  "promptFile": "model-prompt-v1.txt",
+  "testFile": "hidden-tests-v1.test.js",
+  "status": "frozen",
+  "scoreNamespace": "bugfix-v1",
+  "inference": {
+    "endpoint": "/api/generate",
+    "stream": false,
+    "num_ctx": 32768,
+    "temperature": 0,
+    "seed": 42,
+    "num_predict": 4096,
+    "keep_alive": 0,
+    "raw": false
+  }
+}

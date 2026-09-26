@@ -1,0 +1,9 @@
+﻿{
+  "name": "llm-benchmark-lab",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local LLM benchmarking application",
+  "scripts": {
+    "start": "node src/server.js"
+  }
+}
