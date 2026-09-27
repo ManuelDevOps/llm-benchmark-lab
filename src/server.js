@@ -14,8 +14,13 @@ const {
 } = require("./public-result");
 
 const {
-  runBenchmarkGeneration
+  runBenchmarkGeneration,
+  RESULTS_DIR
 } = require("./benchmark-runner");
+
+const {
+  writeBugfixAdjudication
+} = require("./bugfix-adjudication-store");
 
 const HOST = "127.0.0.1";
 const PORT = 3000;
@@ -386,6 +391,177 @@ async function handleRunBenchmark(
   }
 }
 
+async function handleAdjudicateBugfix(
+  req,
+  res
+) {
+  const contentType =
+    String(
+      req.headers["content-type"] || ""
+    )
+      .split(";")[0]
+      .trim()
+      .toLowerCase();
+
+  if (contentType !== "application/json") {
+    sendJson(
+      res,
+      415,
+      {
+        error:
+          "Content-Type must be application/json"
+      }
+    );
+
+    return;
+  }
+
+  let body;
+
+  try {
+    body =
+      await readJsonBody(req);
+  } catch (error) {
+    let statusCode = 400;
+
+    if (
+      error.code ===
+      "REQUEST_BODY_TOO_LARGE"
+    ) {
+      statusCode = 413;
+    }
+
+    sendJson(
+      res,
+      statusCode,
+      {
+        error:
+          "Invalid adjudication request",
+        detail:
+          sanitizePublicValue(
+            error.message
+          )
+      }
+    );
+
+    return;
+  }
+
+  if (
+    !body ||
+    typeof body !== "object" ||
+    Array.isArray(body)
+  ) {
+    sendJson(
+      res,
+      400,
+      {
+        error:
+          "Request body must be a JSON object"
+      }
+    );
+
+    return;
+  }
+
+  if (
+    typeof body.runId !== "string" ||
+    body.runId.trim() === ""
+  ) {
+    sendJson(
+      res,
+      400,
+      {
+        error:
+          "runId must be a non-empty string"
+      }
+    );
+
+    return;
+  }
+
+  if (
+    !body.adjudication ||
+    typeof body.adjudication !== "object" ||
+    Array.isArray(body.adjudication)
+  ) {
+    sendJson(
+      res,
+      400,
+      {
+        error:
+          "adjudication must be an object"
+      }
+    );
+
+    return;
+  }
+
+  const runId =
+    body.runId.trim();
+
+  try {
+    const finalEvaluation =
+      writeBugfixAdjudication({
+        resultsDir:
+          RESULTS_DIR,
+        runId,
+        adjudication:
+          body.adjudication
+      });
+
+    sendJson(
+      res,
+      200,
+      {
+        runId,
+        evaluation:
+          sanitizePublicValue(
+            finalEvaluation
+          )
+      }
+    );
+  } catch (error) {
+    let statusCode = 500;
+
+    if (
+      error instanceof TypeError ||
+      error instanceof RangeError ||
+      /runId/i.test(error.message) ||
+      /criterion/i.test(error.message)
+    ) {
+      statusCode = 400;
+    } else if (
+      /run does not exist/i.test(
+        error.message
+      )
+    ) {
+      statusCode = 404;
+    } else if (
+      /already exists/i.test(
+        error.message
+      ) ||
+      /Mechanical evaluation does not exist/i.test(
+        error.message
+      )
+    ) {
+      statusCode = 409;
+    }
+
+    sendJson(
+      res,
+      statusCode,
+      {
+        error:
+          "Bugfix adjudication failed",
+        detail:
+          sanitizePublicValue(
+            error.message
+          )
+      }
+    );
+  }
+}
 function loadBenchmarks() {
   if (!fs.existsSync(benchmarksDir)) {
     return [];
@@ -527,6 +703,11 @@ const server = http.createServer(async (req, res) => {
 
   if (req.url === "/api/run-benchmark" && req.method === "POST") {
     await handleRunBenchmark(req, res);
+    return;
+  }
+
+  if (req.url === "/api/adjudicate-bugfix" && req.method === "POST") {
+    await handleAdjudicateBugfix(req, res);
     return;
   }
 

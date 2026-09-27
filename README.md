@@ -150,6 +150,10 @@ The benchmark asks the model to diagnose and patch an existing JavaScript implem
 
 Mechanical portions of the evaluation are performed automatically.
 
+The frozen `bugfix-v1` pack also includes its specification, defect registry, scoring rubric, execution procedure, baseline validation record, and reference implementation. These artefacts support reproducibility, validation, auditing, and separate adjudication of the benchmark.
+
+They are not included in the normal model prompt. During automatic patch evaluation, the adapter creates the workspace `reference-v1.js` from the model-patched `buggy-v1.js` before running the hidden tests. The frozen `reference-v1.js` stored in the benchmark pack is therefore a validation and audit artefact, not the candidate implementation used to score a model response.
+
 Some semantic and patch-discipline scoring components require separate adjudication and may remain `null` in an automatic run.
 
 ## Benchmark reproducibility

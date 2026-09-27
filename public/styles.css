@@ -171,3 +171,58 @@ button:disabled {
     grid-template-columns: 1fr 1fr;
   }
 }
+.adjudication-intro {
+  margin-bottom: 24px;
+}
+
+.adjudication-section {
+  margin-top: 20px;
+  padding: 18px;
+  border: 1px solid #2b2e35;
+  border-radius: 8px;
+  background: #111318;
+}
+
+.adjudication-section h4 {
+  margin: 0 0 16px;
+}
+
+.adjudication-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+.adjudication-field,
+.adjudication-reason {
+  margin-bottom: 14px;
+}
+
+.adjudication-reason {
+  margin-top: 14px;
+}
+
+textarea {
+  width: 100%;
+  min-height: 90px;
+  padding: 10px 12px;
+  border: 1px solid #3a3e47;
+  border-radius: 8px;
+  resize: vertical;
+  background: #111318;
+  color: #f1f3f4;
+  font: inherit;
+  line-height: 1.4;
+}
+
+#diagnosisFields h3,
+#patchDisciplineFields h3 {
+  margin-top: 28px;
+  margin-bottom: 12px;
+}
+
+@media (max-width: 700px) {
+  .adjudication-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
