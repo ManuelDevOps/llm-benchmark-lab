@@ -172,15 +172,51 @@ function writeBugfixAdjudication({
       adjudication
     );
 
-  writeJsonExclusive(
-    adjudicationPath,
-    validatedAdjudication
-  );
+  const generatedPaths = [];
 
-  writeJsonExclusive(
-    finalEvaluationPath,
-    finalEvaluation
-  );
+  try {
+    writeJsonExclusive(
+      adjudicationPath,
+      validatedAdjudication
+    );
+
+    generatedPaths.push(
+      adjudicationPath
+    );
+
+    writeJsonExclusive(
+      finalEvaluationPath,
+      finalEvaluation
+    );
+
+    generatedPaths.push(
+      finalEvaluationPath
+    );
+  } catch (error) {
+    const rollbackErrors = [];
+
+    for (const generatedPath of generatedPaths) {
+      try {
+        fs.unlinkSync(generatedPath);
+      } catch (rollbackError) {
+        rollbackErrors.push(
+          rollbackError
+        );
+      }
+    }
+
+    if (rollbackErrors.length > 0) {
+      throw new AggregateError(
+        [
+          error,
+          ...rollbackErrors
+        ],
+        "Failed to write bugfix adjudication and rollback generated files"
+      );
+    }
+
+    throw error;
+  }
 
   return finalEvaluation;
 }

@@ -303,3 +303,136 @@ test("refuses to overwrite an existing adjudication", () => {
     /already exists/i
   );
 });
+
+test("rolls back adjudication if final evaluation write fails", () => {
+  const {
+    resultsDir,
+    runId,
+    runDir
+  } = createTemporaryRun();
+
+  const adjudicationPath =
+    path.join(runDir, "adjudication.json");
+
+  const finalEvaluationPath =
+    path.join(runDir, "evaluation-final.json");
+
+  const originalWriteFileSync =
+    fs.writeFileSync;
+
+  fs.writeFileSync = function(filePath, ...args) {
+    if (
+      path.resolve(filePath) ===
+      path.resolve(finalEvaluationPath)
+    ) {
+      throw new Error(
+        "simulated final write failure"
+      );
+    }
+
+    return originalWriteFileSync.call(
+      fs,
+      filePath,
+      ...args
+    );
+  };
+
+  try {
+    assert.throws(
+      () =>
+        writeBugfixAdjudication({
+          resultsDir,
+          runId,
+          adjudication:
+            createValidAdjudication()
+        }),
+      /simulated final write failure/
+    );
+  } finally {
+    fs.writeFileSync =
+      originalWriteFileSync;
+  }
+
+  assert.equal(
+    fs.existsSync(adjudicationPath),
+    false
+  );
+
+  assert.equal(
+    fs.existsSync(finalEvaluationPath),
+    false
+  );
+});
+
+test("does not delete an adjudication created concurrently by another writer", () => {
+  const {
+    resultsDir,
+    runId,
+    runDir
+  } = createTemporaryRun();
+
+  const adjudicationPath =
+    path.join(
+      runDir,
+      "adjudication.json"
+    );
+
+  const originalWriteFileSync =
+    fs.writeFileSync;
+
+  fs.writeFileSync =
+    function simulatedConcurrentWrite(
+      filePath,
+      ...args
+    ) {
+      if (
+        path.resolve(filePath) ===
+        path.resolve(adjudicationPath)
+      ) {
+        originalWriteFileSync.call(
+          fs,
+          adjudicationPath,
+          "external writer\n",
+          "utf8"
+        );
+
+        const error =
+          new Error(
+            "simulated concurrent adjudication"
+          );
+
+        error.code = "EEXIST";
+        throw error;
+      }
+
+      return originalWriteFileSync.call(
+        fs,
+        filePath,
+        ...args
+      );
+    };
+
+  try {
+    assert.throws(
+      () =>
+        writeBugfixAdjudication({
+          resultsDir,
+          runId,
+          adjudication:
+            createValidAdjudication()
+        }),
+      /simulated concurrent adjudication/
+    );
+  } finally {
+    fs.writeFileSync =
+      originalWriteFileSync;
+  }
+
+  assert.equal(
+    fs.readFileSync(
+      adjudicationPath,
+      "utf8"
+    ),
+    "external writer\n"
+  );
+});
