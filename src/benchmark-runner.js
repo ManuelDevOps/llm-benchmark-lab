@@ -546,6 +546,9 @@ async function runBenchmarkGeneration({
       postRunState:
         execution.postRunState,
 
+      postRunStateError:
+        execution.postRunStateError ?? null,
+
       httpStatus:
         execution.httpStatus,
 

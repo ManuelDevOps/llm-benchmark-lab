@@ -199,8 +199,18 @@ async function generate(model, prompt, inference) {
     throw error;
   }
 
-  const postRunState =
-    await getRunningModels();
+  let postRunState = null;
+  let postRunStateError = null;
+
+  // A metadata failure must not discard an already received answer.
+  try {
+    postRunState = await getRunningModels();
+  } catch (error) {
+    postRunStateError = {
+      name: error.name,
+      message: error.message
+    };
+  }
 
   return {
     ollamaVersion,
@@ -212,7 +222,8 @@ async function generate(model, prompt, inference) {
     rawResponse,
     response: responseJson,
     preRunState,
-    postRunState
+    postRunState,
+    postRunStateError
   };
 }
 
