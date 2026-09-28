@@ -5,6 +5,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
+const { validateBugfixAdjudication } = require("../src/bugfix-adjudication");
 
 const {
   resolveBugfixRunDir,
@@ -302,6 +303,87 @@ test("refuses to overwrite an existing adjudication", () => {
       }),
     /already exists/i
   );
+});
+
+function createPartialRun() {
+  const run = createTemporaryRun();
+  const adjudicationPath = path.join(run.runDir, "adjudication.json");
+  const finalPath = path.join(run.runDir, "evaluation-final.json");
+  const original = JSON.stringify(validateBugfixAdjudication(createValidAdjudication()));
+  fs.writeFileSync(adjudicationPath, original);
+  return { ...run, adjudicationPath, finalPath, original };
+}
+
+test("recovers adjudication-only state using persisted criteria without changing evidence", () => {
+  const run = createPartialRun();
+  const evaluationPath = path.join(run.runDir, "evaluation.json");
+  const before = fs.readFileSync(evaluationPath, "utf8");
+  const submitted = createValidAdjudication();
+  // Key ordering and whitespace normalized by the validator are not changes.
+  submitted.diagnosis = Object.fromEntries(Object.entries(submitted.diagnosis).reverse());
+  submitted.diagnosis["BF-01"].reason += "  ";
+  const result = writeBugfixAdjudication({ ...run, adjudication: submitted });
+  assert.equal(result.total, 15);
+  assert.deepEqual(JSON.parse(fs.readFileSync(run.finalPath, "utf8")), result);
+  assert.equal(fs.readFileSync(run.adjudicationPath, "utf8"), run.original);
+  assert.equal(fs.readFileSync(evaluationPath, "utf8"), before);
+  assert.throws(() => writeBugfixAdjudication({ ...run, adjudication: submitted }), /already exists/i);
+  assert.deepEqual(JSON.parse(fs.readFileSync(run.finalPath, "utf8")), result);
+});
+
+for (const change of ["score", "reason"]) {
+  test(`recovery rejects different submitted ${change} without changing partial state`, () => {
+    const run = createPartialRun();
+    const submitted = createValidAdjudication();
+    if (change === "score") submitted.patchDiscipline.D1.score = 3;
+    else submitted.patchDiscipline.D1.reason = "Different judgement";
+    assert.throws(() => writeBugfixAdjudication({ ...run, adjudication: submitted }), /differs.*recovery refused/i);
+    assert.equal(fs.readFileSync(run.adjudicationPath, "utf8"), run.original);
+    assert.equal(fs.existsSync(run.finalPath), false);
+  });
+}
+
+test("rejects final evaluation without adjudication as inconsistent", () => {
+  const run = createTemporaryRun();
+  const finalPath = path.join(run.runDir, "evaluation-final.json");
+  fs.writeFileSync(finalPath, "existing final evidence");
+  assert.throws(() => writeBugfixAdjudication({
+    ...run, adjudication: createValidAdjudication()
+  }), /inconsistent.*without adjudication/i);
+  assert.equal(fs.readFileSync(finalPath, "utf8"), "existing final evidence");
+  assert.equal(fs.existsSync(path.join(run.runDir, "adjudication.json")), false);
+});
+
+for (const invalidSource of ["persisted", "submitted"]) {
+  test(`recovery validates ${invalidSource} criteria before writing`, () => {
+    const run = createPartialRun();
+    const submitted = createValidAdjudication();
+    if (invalidSource === "persisted") {
+      const persisted = JSON.parse(run.original);
+      persisted.D.criteria.D1.score = 99;
+      fs.writeFileSync(run.adjudicationPath, JSON.stringify(persisted));
+    } else submitted.patchDiscipline.D1.score = 99;
+    const before = fs.readFileSync(run.adjudicationPath, "utf8");
+    assert.throws(() => writeBugfixAdjudication({ ...run, adjudication: submitted }), /outside the frozen rubric/);
+    assert.equal(fs.readFileSync(run.adjudicationPath, "utf8"), before);
+    assert.equal(fs.existsSync(run.finalPath), false);
+  });
+}
+
+test("recovery preserves concurrent final creation and authoritative adjudication", t => {
+  const run = createPartialRun();
+  const write = fs.writeFileSync;
+  t.mock.method(fs, "writeFileSync", (file, data, options) => {
+    assert.equal(file, run.finalPath);
+    assert.equal(options.flag, "wx");
+    write(file, "concurrent final");
+    return write(file, data, options);
+  });
+  assert.throws(() => writeBugfixAdjudication({
+    ...run, adjudication: createValidAdjudication()
+  }), { code: "EEXIST" });
+  assert.equal(fs.readFileSync(run.finalPath, "utf8"), "concurrent final");
+  assert.equal(fs.readFileSync(run.adjudicationPath, "utf8"), run.original);
 });
 
 test("rolls back adjudication if final evaluation write fails", () => {

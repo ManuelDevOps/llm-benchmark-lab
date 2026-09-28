@@ -2,6 +2,7 @@
 
 const fs = require("node:fs");
 const path = require("node:path");
+const { isDeepStrictEqual } = require("node:util");
 
 const {
   validateBugfixAdjudication,
@@ -147,10 +148,16 @@ function writeBugfixAdjudication({
       "evaluation-final.json"
     );
 
-  if (
-    fs.existsSync(adjudicationPath) ||
-    fs.existsSync(finalEvaluationPath)
-  ) {
+  const hasAdjudication = fs.existsSync(adjudicationPath);
+  const hasFinalEvaluation = fs.existsSync(finalEvaluationPath);
+
+  if (hasFinalEvaluation && !hasAdjudication) {
+    throw new Error(
+      "Inconsistent adjudication state: final evaluation exists without adjudication"
+    );
+  }
+
+  if (hasAdjudication && hasFinalEvaluation) {
     throw new Error(
       "Adjudication already exists for this run"
     );
@@ -165,6 +172,32 @@ function writeBugfixAdjudication({
     validateBugfixAdjudication(
       adjudication
     );
+
+  if (hasAdjudication) {
+    const persisted = readJson(adjudicationPath);
+    // The store saves validated C/D sections, whereas the validator accepts
+    // diagnosis/patchDiscipline input. Revalidate the persisted criteria.
+    const persistedInput = {
+      diagnosis: persisted?.C?.defects,
+      patchDiscipline: persisted?.D?.criteria
+    };
+    const validatedPersisted = validateBugfixAdjudication(persistedInput);
+
+    if (!isDeepStrictEqual(validatedAdjudication, validatedPersisted)) {
+      throw new Error(
+        "Submitted adjudication differs from persisted adjudication; recovery refused"
+      );
+    }
+
+    const recovered = finalizeBugfixEvaluation(
+      mechanicalEvaluation,
+      persistedInput
+    );
+    // Never roll back or overwrite the authoritative persisted adjudication,
+    // or a final evaluation created by a concurrent writer.
+    writeJsonExclusive(finalEvaluationPath, recovered);
+    return recovered;
+  }
 
   const finalEvaluation =
     finalizeBugfixEvaluation(
