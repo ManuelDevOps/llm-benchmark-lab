@@ -791,6 +791,9 @@ async function loadRuns() {
     const data =
       await response.json();
 
+    const selectedRun =
+      getSelectedSavedRun();
+
     savedRuns =
       Array.isArray(data.runs)
         ? data.runs
@@ -847,6 +850,16 @@ async function loadRuns() {
         );
       }
     );
+
+    const selectedIndex = savedRuns.findIndex(
+      (run) =>
+        run.benchmarkId === selectedRun?.benchmarkId &&
+        run.runId === selectedRun?.runId
+    );
+
+    if (selectedIndex !== -1) {
+      savedRunSelect.value = String(selectedIndex);
+    }
 
     savedRunSelect.disabled =
       false;
@@ -1090,6 +1103,8 @@ async function runBenchmark() {
     showAdjudicationForResult(
       data
     );
+
+    await loadRuns();
   } catch (error) {
     resultStatus.textContent =
       `Benchmark failed: ${error.message}`;
@@ -1233,6 +1248,8 @@ async function adjudicateBugfix() {
 
     adjudicateButton.disabled =
       true;
+
+    await loadRuns();
   } catch (error) {
     adjudicationStatus.textContent =
       `Adjudication failed: ${error.message}`;
