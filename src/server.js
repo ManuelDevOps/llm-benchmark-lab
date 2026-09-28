@@ -15,6 +15,7 @@ const {
 
 const {
   runBenchmarkGeneration,
+  hasBenchmarkEvaluator,
   RESULTS_DIR
 } = require("./benchmark-runner");
 
@@ -592,6 +593,10 @@ function loadBenchmarks() {
       }
 
       const issues = [];
+
+      if (!hasBenchmarkEvaluator(manifest.id)) {
+        issues.push("No benchmark evaluator configured");
+      }
 
       if (!manifest.id) {
         issues.push("Missing id");

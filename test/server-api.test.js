@@ -2,6 +2,13 @@
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
+const {
+  MANIFESTS_DIR,
+  runBenchmarkGeneration,
+  evaluateBenchmarkResponse
+} = require("../src/benchmark-runner");
 
 const {
   server,
@@ -85,6 +92,109 @@ test("GET /api/benchmarks returns public benchmark metadata", async () => {
   assert.equal(/[A-Za-z]:\\Users\\/i.test(serialized), false);
   assert.equal(/\/home\/[^/\s]+/i.test(serialized), false);
   assert.equal(/\/Users\/[^/\s]+/i.test(serialized), false);
+});
+
+test("discovery marks an otherwise valid benchmark without an evaluator unavailable", async t => {
+  const readFileSync = fs.readFileSync;
+  const readdirSync = fs.readdirSync;
+  const unsupportedPath = path.join(MANIFESTS_DIR, "unsupported-test.json");
+  const manifest = JSON.parse(readFileSync(
+    path.join(MANIFESTS_DIR, "bugfix-v1.json"), "utf8"
+  ));
+  manifest.id = "unsupported-test";
+  manifest.name = "Unsupported test";
+
+  // Virtual manifest only: do not change the frozen benchmark directory.
+  t.mock.method(fs, "readdirSync", (directory, ...args) => {
+    const entries = readdirSync(directory, ...args);
+    return directory === MANIFESTS_DIR
+      ? [...entries, "unsupported-test.json"]
+      : entries;
+  });
+  t.mock.method(fs, "readFileSync", (file, ...args) =>
+    file === unsupportedPath
+      ? JSON.stringify(manifest)
+      : readFileSync(file, ...args)
+  );
+
+  const response = await fetch(`${baseUrl}/api/benchmarks`);
+  assert.equal(response.status, 200);
+  const { benchmarks } = await response.json();
+  assert.deepEqual(benchmarks.find(item => item.id === manifest.id), {
+    id: "unsupported-test", name: "Unsupported test",
+    category: "debugging", available: false
+  });
+  for (const id of ["cart-total-v1", "bugfix-v1"]) {
+    assert.equal(benchmarks.find(item => item.id === id).available, true);
+  }
+});
+
+test("unsupported execution reads its manifest but rejects before prompt, fetch or run setup", async t => {
+  const manifests = new Map(["unsupported-test", "toString"].map(id => [
+    path.join(MANIFESTS_DIR, `${id}.json`),
+    JSON.stringify({
+      id, name: "Unsupported test", sourceDir: "packs/bugfix-v1",
+      promptFile: "model-prompt-v1.txt", inference: {}
+    })
+  ]));
+  const existsMock = t.mock.method(fs, "existsSync", file => {
+    assert.ok(manifests.has(file), "Only the manifest may be checked");
+    return true;
+  });
+  const fetchMock = t.mock.method(globalThis, "fetch", async () => {
+    throw new Error("Unexpected network request");
+  });
+  const readMock = t.mock.method(fs, "readFileSync", file => {
+    assert.ok(manifests.has(file), "Only the manifest may be read");
+    return manifests.get(file);
+  });
+  const resolve = path.resolve;
+  t.mock.method(path, "resolve", (...args) => {
+    assert.equal(args.includes("model-prompt-v1.txt"), false, "Prompt must not be resolved");
+    return resolve(...args);
+  });
+  const mkdirMock = t.mock.method(fs, "mkdirSync", () => {
+    throw new Error("Unexpected run directory creation");
+  });
+
+  for (const benchmarkId of ["unsupported-test", "toString"]) {
+    await assert.rejects(
+      runBenchmarkGeneration({ benchmarkId, model: "mock-model" }),
+      { message: `No benchmark evaluator configured for: ${benchmarkId}` }
+    );
+    assert.throws(
+      () => evaluateBenchmarkResponse({ benchmarkId }),
+      { message: `No benchmark evaluator configured for: ${benchmarkId}` }
+    );
+  }
+  assert.equal(fetchMock.mock.callCount(), 0);
+  assert.equal(existsMock.mock.callCount(), 2);
+  assert.equal(readMock.mock.callCount(), 2);
+  assert.equal(mkdirMock.mock.callCount(), 0);
+});
+
+test("nonexistent benchmark preserves the manifest-not-found error before evaluator checking", async t => {
+  const benchmarkId = "nonexistent-test";
+  t.mock.method(fs, "existsSync", file => {
+    assert.equal(file, path.join(MANIFESTS_DIR, `${benchmarkId}.json`));
+    return false;
+  });
+  const readMock = t.mock.method(fs, "readFileSync", () => {
+    throw new Error("Unexpected file read");
+  });
+  const fetchMock = t.mock.method(globalThis, "fetch", async () => {
+    throw new Error("Unexpected network request");
+  });
+  const mkdirMock = t.mock.method(fs, "mkdirSync", () => {
+    throw new Error("Unexpected run directory creation");
+  });
+  await assert.rejects(
+    runBenchmarkGeneration({ benchmarkId, model: "mock-model" }),
+    { message: `Benchmark manifest not found: ${benchmarkId}` }
+  );
+  assert.equal(readMock.mock.callCount(), 0);
+  assert.equal(fetchMock.mock.callCount(), 0);
+  assert.equal(mkdirMock.mock.callCount(), 0);
 });
 
 test("unknown route returns 404", async () => {

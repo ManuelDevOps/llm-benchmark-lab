@@ -243,40 +243,38 @@ function validateGeneration(
   };
 }
 
+const evaluators = new Map([
+  ["cart-total-v1", evaluateCartTotal],
+  ["bugfix-v1", evaluateBugfix]
+]);
+
+function hasBenchmarkEvaluator(benchmarkId) {
+  return evaluators.has(benchmarkId);
+}
+
+function requireBenchmarkEvaluator(benchmarkId) {
+  const evaluator = evaluators.get(benchmarkId);
+
+  if (!evaluator) {
+    throw new Error(
+      `No benchmark evaluator configured for: ${benchmarkId}`
+    );
+  }
+
+  return evaluator;
+}
+
 function evaluateBenchmarkResponse({
   benchmarkId,
   responseText,
   manifest,
   runDir
 }) {
-  switch (benchmarkId) {
-    case "cart-total-v1":
-      return evaluateCartTotal({
-        responseText,
-        manifest,
-        runDir
-      });
-
-    case "bugfix-v1":
-      /*
-       * A, B and E are evaluated mechanically.
-       *
-       * C and D require external semantic adjudication and
-       * intentionally remain null here. The bugfix adapter
-       * therefore also leaves total null until those scores
-       * are supplied separately.
-       */
-      return evaluateBugfix({
-        responseText,
-        manifest,
-        runDir
-      });
-
-    default:
-      throw new Error(
-        `No benchmark evaluator configured for: ${benchmarkId}`
-      );
-  }
+  return requireBenchmarkEvaluator(benchmarkId)({
+    responseText,
+    manifest,
+    runDir
+  });
 }
 
 async function runBenchmarkGeneration({
@@ -305,6 +303,8 @@ async function runBenchmarkGeneration({
     manifest,
     manifestPath
   } = loadManifest(benchmarkId);
+
+  requireBenchmarkEvaluator(benchmarkId);
 
   const promptPath =
     resolvePromptPath(manifest);
@@ -655,6 +655,7 @@ module.exports = {
   resolvePromptPath,
   calculatePerformance,
   validateGeneration,
+  hasBenchmarkEvaluator,
   evaluateBenchmarkResponse,
   runBenchmarkGeneration
 };
