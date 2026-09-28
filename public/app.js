@@ -79,6 +79,7 @@ function getSelectedSavedRun() {
 function updateLoadRunButtonState() {
   loadRunButton.disabled =
     loadRunInProgress ||
+    adjudicationInProgress ||
     runInProgress ||
     !getSelectedSavedRun();
 }
@@ -89,6 +90,7 @@ function updateRunButtonState() {
 
   runButton.disabled =
     runInProgress ||
+    adjudicationInProgress ||
     loadRunInProgress ||
     !model ||
     !benchmark ||
@@ -892,6 +894,7 @@ async function loadSelectedRun() {
 
   if (
     loadRunInProgress ||
+    adjudicationInProgress ||
     runInProgress ||
     !selectedRun
   ) {
@@ -995,6 +998,7 @@ async function runBenchmark() {
 
   if (
     runInProgress ||
+    adjudicationInProgress ||
     loadRunInProgress ||
     !model ||
     !benchmark ||
@@ -1147,6 +1151,8 @@ async function runBenchmark() {
 async function adjudicateBugfix() {
   if (
     adjudicationInProgress ||
+    runInProgress ||
+    loadRunInProgress ||
     !latestBenchmarkResult ||
     latestBenchmarkResult.benchmarkId !==
       "bugfix-v1" ||
@@ -1154,6 +1160,12 @@ async function adjudicateBugfix() {
   ) {
     return;
   }
+
+  const submittedBenchmarkId = latestBenchmarkResult.benchmarkId;
+  const submittedRunId = latestBenchmarkResult.runId;
+  const isSubmittedRunCurrent = () =>
+    latestBenchmarkResult?.benchmarkId === submittedBenchmarkId &&
+    latestBenchmarkResult?.runId === submittedRunId;
 
   let adjudication;
 
@@ -1172,6 +1184,8 @@ async function adjudicateBugfix() {
   }
 
   adjudicationInProgress = true;
+  updateRunButtonState();
+  updateLoadRunButtonState();
   adjudicateButton.disabled = true;
   adjudicateButton.textContent =
     "Saving...";
@@ -1195,7 +1209,7 @@ async function adjudicateBugfix() {
           },
           body: JSON.stringify({
             runId:
-              latestBenchmarkResult.runId,
+              submittedRunId,
             adjudication
           })
         }
@@ -1227,43 +1241,53 @@ async function adjudicateBugfix() {
       );
     }
 
-    latestBenchmarkResult = {
-      ...latestBenchmarkResult,
-      evaluation:
-        data.evaluation
-    };
+    if (data.runId !== submittedRunId) {
+      throw new Error("Adjudication response runId does not match submitted run");
+    }
 
-    resultOutput.textContent =
-      JSON.stringify(
-        latestBenchmarkResult,
-        null,
-        2
-      );
+    if (isSubmittedRunCurrent()) {
+      latestBenchmarkResult = {
+        ...latestBenchmarkResult,
+        evaluation:
+          data.evaluation
+      };
 
-    adjudicationStatus.textContent =
-      `Adjudication saved. Final score: ${data.evaluation.total}/100`;
+      resultOutput.textContent =
+        JSON.stringify(
+          latestBenchmarkResult,
+          null,
+          2
+        );
 
-    adjudicateButton.textContent =
-      "Adjudication saved";
+      adjudicationStatus.textContent =
+        `Adjudication saved. Final score: ${data.evaluation.total}/100`;
 
-    adjudicateButton.disabled =
-      true;
+      adjudicateButton.textContent =
+        "Adjudication saved";
+
+      adjudicateButton.disabled =
+        true;
+    }
 
     await loadRuns();
   } catch (error) {
-    adjudicationStatus.textContent =
-      `Adjudication failed: ${error.message}`;
+    if (isSubmittedRunCurrent()) {
+      adjudicationStatus.textContent =
+        `Adjudication failed: ${error.message}`;
 
-    adjudicateButton.textContent =
-      "Save adjudication";
+      adjudicateButton.textContent =
+        "Save adjudication";
 
-    adjudicateButton.disabled =
-      false;
+      adjudicateButton.disabled =
+        false;
+    }
 
     console.error(error);
   } finally {
     adjudicationInProgress =
       false;
+    updateRunButtonState();
+    updateLoadRunButtonState();
   }
 }
 
