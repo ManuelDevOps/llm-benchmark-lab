@@ -13,6 +13,10 @@ const modelCapabilities = document.getElementById("modelCapabilities");
 const benchmarkSelect = document.getElementById("benchmarkSelect");
 const runButton = document.getElementById("runButton");
 
+const savedRunSelect = document.getElementById("savedRunSelect");
+const savedRunStatus = document.getElementById("savedRunStatus");
+const loadRunButton = document.getElementById("loadRunButton");
+
 const resultStatus = document.getElementById("resultStatus");
 const resultOutput = document.getElementById("resultOutput");
 
@@ -45,7 +49,9 @@ const PATCH_DISCIPLINE_IDS = [
 
 let models = [];
 let benchmarks = [];
+let savedRuns = [];
 let runInProgress = false;
+let loadRunInProgress = false;
 let adjudicationInProgress = false;
 let latestBenchmarkResult = null;
 
@@ -66,12 +72,24 @@ function getSelectedBenchmark() {
   return benchmarks[Number(benchmarkSelect.value)] ?? null;
 }
 
+function getSelectedSavedRun() {
+  return savedRuns[Number(savedRunSelect.value)] ?? null;
+}
+
+function updateLoadRunButtonState() {
+  loadRunButton.disabled =
+    loadRunInProgress ||
+    runInProgress ||
+    !getSelectedSavedRun();
+}
+
 function updateRunButtonState() {
   const model = getSelectedModel();
   const benchmark = getSelectedBenchmark();
 
   runButton.disabled =
     runInProgress ||
+    loadRunInProgress ||
     !model ||
     !benchmark ||
     benchmark.available !== true;
@@ -412,6 +430,115 @@ function collectAdjudication() {
   };
 }
 
+function populateAdjudicationFormFromEvaluation(
+  evaluation
+) {
+  const defects =
+    evaluation?.scores?.C?.defects;
+
+  const criteria =
+    evaluation?.scores?.D?.criteria;
+
+  if (
+    defects &&
+    typeof defects === "object"
+  ) {
+    for (const defectId of DIAGNOSIS_IDS) {
+      const defect =
+        defects[defectId];
+
+      if (!defect) {
+        continue;
+      }
+
+      const values = {
+        identification:
+          defect.identification,
+        cause:
+          defect.cause,
+        impact:
+          defect.impact,
+        severity:
+          defect.severityRationale
+      };
+
+      for (const [field, value] of Object.entries(values)) {
+        const select =
+          document.getElementById(
+            `${defectId}-${field}`
+          );
+
+        if (
+          select &&
+          Number.isFinite(value)
+        ) {
+          select.value =
+            String(value);
+        }
+      }
+
+      const reason =
+        document.getElementById(
+          `${defectId}-reason`
+        );
+
+      if (
+        reason &&
+        typeof defect.reason ===
+          "string"
+      ) {
+        reason.value =
+          defect.reason;
+      }
+    }
+  }
+
+  if (
+    criteria &&
+    typeof criteria === "object"
+  ) {
+    for (const criterionId of PATCH_DISCIPLINE_IDS) {
+      const criterion =
+        criteria[criterionId];
+
+      if (!criterion) {
+        continue;
+      }
+
+      const score =
+        document.getElementById(
+          `${criterionId}-score`
+        );
+
+      if (
+        score &&
+        Number.isFinite(
+          criterion.score
+        )
+      ) {
+        score.value =
+          String(
+            criterion.score
+          );
+      }
+
+      const reason =
+        document.getElementById(
+          `${criterionId}-reason`
+        );
+
+      if (
+        reason &&
+        typeof criterion.reason ===
+          "string"
+      ) {
+        reason.value =
+          criterion.reason;
+      }
+    }
+  }
+}
+
 function showAdjudicationForResult(
   result
 ) {
@@ -431,6 +558,41 @@ function showAdjudicationForResult(
   }
 
   resetAdjudicationForm();
+
+  const finalized =
+    result.evaluation?.scores?.C?.source ===
+      "external-adjudication" &&
+    result.evaluation?.scores?.D?.source ===
+      "external-adjudication";
+
+  for (
+    const control of
+    adjudicationCard.querySelectorAll(
+      "select, textarea"
+    )
+  ) {
+    control.disabled =
+      finalized;
+  }
+
+  if (finalized) {
+    populateAdjudicationFormFromEvaluation(
+      result.evaluation
+    );
+
+    adjudicationStatus.textContent =
+      `Adjudication already saved. Final score: ${result.evaluation.total}/100`;
+
+    adjudicationStatus.classList.remove(
+      "hidden"
+    );
+
+    adjudicateButton.textContent =
+      "Adjudication saved";
+
+    adjudicateButton.disabled =
+      true;
+  }
 
   adjudicationCard.classList.remove(
     "hidden"
@@ -613,6 +775,204 @@ async function loadBenchmarks() {
   }
 }
 
+async function loadRuns() {
+  try {
+    const response =
+      await fetch(
+        "/api/runs"
+      );
+
+    if (!response.ok) {
+      throw new Error(
+        `HTTP ${response.status}`
+      );
+    }
+
+    const data =
+      await response.json();
+
+    savedRuns =
+      Array.isArray(data.runs)
+        ? data.runs
+        : [];
+
+    savedRunSelect.innerHTML =
+      "";
+
+    if (savedRuns.length === 0) {
+      savedRunSelect.innerHTML =
+        "<option>No saved runs found</option>";
+
+      savedRunSelect.disabled =
+        true;
+
+      savedRunStatus.textContent =
+        "No saved benchmark runs are available.";
+
+      updateLoadRunButtonState();
+      return;
+    }
+
+    savedRuns.forEach(
+      (run, index) => {
+        const option =
+          document.createElement(
+            "option"
+          );
+
+        option.value =
+          String(index);
+
+        let score =
+          Number.isFinite(run.total)
+            ? `${run.total}/100`
+            : "unscored";
+
+        if (
+          run.benchmarkId ===
+            "cart-total-v1" &&
+          run.explicitRequirements &&
+          run.engineeringRobustness
+        ) {
+          score =
+            `A ${run.explicitRequirements.passed}/${run.explicitRequirements.total}` +
+            ` · B ${run.engineeringRobustness.passed}/${run.engineeringRobustness.total}`;
+        }
+
+        option.textContent =
+          `${run.benchmarkId} · ${run.model || "unknown model"} · ${score} · ${run.runId}`;
+
+        savedRunSelect.appendChild(
+          option
+        );
+      }
+    );
+
+    savedRunSelect.disabled =
+      false;
+
+    savedRunStatus.textContent =
+      `${savedRuns.length} saved run${savedRuns.length === 1 ? "" : "s"} available.`;
+
+    updateLoadRunButtonState();
+  } catch (error) {
+    savedRuns = [];
+
+    savedRunSelect.innerHTML =
+      "<option>Unable to load saved runs</option>";
+
+    savedRunSelect.disabled =
+      true;
+
+    savedRunStatus.textContent =
+      `Unable to load saved runs: ${error.message}`;
+
+    updateLoadRunButtonState();
+
+    console.error(error);
+  }
+}
+
+async function loadSelectedRun() {
+  const selectedRun =
+    getSelectedSavedRun();
+
+  if (
+    loadRunInProgress ||
+    runInProgress ||
+    !selectedRun
+  ) {
+    return;
+  }
+
+  loadRunInProgress =
+    true;
+
+  updateLoadRunButtonState();
+  updateRunButtonState();
+
+  resultStatus.textContent =
+    "Loading saved benchmark run...";
+
+  try {
+    const response =
+      await fetch(
+        "/api/load-run",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type":
+              "application/json"
+          },
+          body: JSON.stringify({
+            benchmarkId:
+              selectedRun.benchmarkId,
+            runId:
+              selectedRun.runId
+          })
+        }
+      );
+
+    const responseText =
+      await response.text();
+
+    let data = null;
+
+    try {
+      data =
+        responseText
+          ? JSON.parse(
+              responseText
+            )
+          : {};
+    } catch {
+      throw new Error(
+        `Server returned non-JSON data with HTTP ${response.status}`
+      );
+    }
+
+    if (!response.ok) {
+      throw new Error(
+        data.detail ||
+        data.error ||
+        `HTTP ${response.status}`
+      );
+    }
+
+    latestBenchmarkResult =
+      data;
+
+    resultStatus.textContent =
+      `Loaded saved run: ${data.benchmarkId} with ${data.model || "unknown model"}`;
+
+    resultOutput.textContent =
+      JSON.stringify(
+        data,
+        null,
+        2
+      );
+
+    resultOutput.classList.remove(
+      "hidden"
+    );
+
+    showAdjudicationForResult(
+      data
+    );
+  } catch (error) {
+    resultStatus.textContent =
+      `Unable to load saved run: ${error.message}`;
+
+    console.error(error);
+  } finally {
+    loadRunInProgress =
+      false;
+
+    updateLoadRunButtonState();
+    updateRunButtonState();
+  }
+}
+
 async function runBenchmark() {
   const model =
     getSelectedModel();
@@ -622,6 +982,7 @@ async function runBenchmark() {
 
   if (
     runInProgress ||
+    loadRunInProgress ||
     !model ||
     !benchmark ||
     benchmark.available !== true
@@ -654,6 +1015,7 @@ async function runBenchmark() {
     "Running...";
 
   updateRunButtonState();
+  updateLoadRunButtonState();
 
   resultStatus.textContent =
     `Running ${benchmark.name} with ${modelName}...`;
@@ -763,6 +1125,7 @@ async function runBenchmark() {
       "Run benchmark";
 
     updateRunButtonState();
+    updateLoadRunButtonState();
   }
 }
 
@@ -907,6 +1270,20 @@ benchmarkSelect.addEventListener(
   }
 );
 
+savedRunSelect.addEventListener(
+  "change",
+  () => {
+    updateLoadRunButtonState();
+  }
+);
+
+loadRunButton.addEventListener(
+  "click",
+  () => {
+    void loadSelectedRun();
+  }
+);
+
 runButton.addEventListener(
   "click",
   () => {
@@ -924,3 +1301,4 @@ adjudicateButton.addEventListener(
 buildAdjudicationForm();
 loadModels();
 loadBenchmarks();
+loadRuns();

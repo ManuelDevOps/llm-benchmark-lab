@@ -71,6 +71,24 @@
     </section>
 
     <section class="card">
+      <h2>Saved runs</h2>
+
+      <label for="savedRunSelect">Previous benchmark run</label>
+
+      <select id="savedRunSelect" disabled>
+        <option>Loading saved runs...</option>
+      </select>
+
+      <p id="savedRunStatus" class="placeholder">
+        Saved benchmark runs will appear here.
+      </p>
+
+      <button id="loadRunButton" type="button" disabled>
+        Load run
+      </button>
+    </section>
+
+    <section class="card">
       <h2>Result</h2>
 
       <p id="resultStatus" class="placeholder">

@@ -668,6 +668,570 @@ function loadBenchmarks() {
   });
 }
 
+function readPersistedJson(
+  filePath
+) {
+  return JSON.parse(
+    fs.readFileSync(
+      filePath,
+      "utf8"
+    )
+  );
+}
+
+function loadPersistedRuns() {
+  const benchmarkIds =
+    loadBenchmarks()
+      .map(
+        (benchmark) =>
+          benchmark.id
+      )
+      .filter(
+        (benchmarkId) =>
+          typeof benchmarkId ===
+            "string" &&
+          benchmarkId.length > 0
+      );
+
+  const runs = [];
+
+  for (const benchmarkId of benchmarkIds) {
+    const benchmarkResultsDir =
+      path.join(
+        RESULTS_DIR,
+        benchmarkId
+      );
+
+    if (
+      !fs.existsSync(
+        benchmarkResultsDir
+      ) ||
+      !fs.statSync(
+        benchmarkResultsDir
+      ).isDirectory()
+    ) {
+      continue;
+    }
+
+    const entries =
+      fs.readdirSync(
+        benchmarkResultsDir,
+        {
+          withFileTypes: true
+        }
+      );
+
+    for (const entry of entries) {
+      if (!entry.isDirectory()) {
+        continue;
+      }
+
+      const runId =
+        entry.name;
+
+      const runDir =
+        path.join(
+          benchmarkResultsDir,
+          runId
+        );
+
+      const runStartPath =
+        path.join(
+          runDir,
+          "run-start.json"
+        );
+
+      const runtimePath =
+        path.join(
+          runDir,
+          "runtime.json"
+        );
+
+      const finalEvaluationPath =
+        path.join(
+          runDir,
+          "evaluation-final.json"
+        );
+
+      const mechanicalEvaluationPath =
+        path.join(
+          runDir,
+          "evaluation.json"
+        );
+
+      const evaluationPath =
+        fs.existsSync(
+          finalEvaluationPath
+        )
+          ? finalEvaluationPath
+          : mechanicalEvaluationPath;
+
+      if (
+        !fs.existsSync(
+          runStartPath
+        ) ||
+        !fs.existsSync(
+          runtimePath
+        ) ||
+        !fs.existsSync(
+          evaluationPath
+        )
+      ) {
+        continue;
+      }
+
+      try {
+        const runStart =
+          readPersistedJson(
+            runStartPath
+          );
+
+        const runtime =
+          readPersistedJson(
+            runtimePath
+          );
+
+        const evaluation =
+          readPersistedJson(
+            evaluationPath
+          );
+
+        if (
+          runStart.runId !==
+            runId ||
+          runStart.benchmarkId !==
+            benchmarkId ||
+          runtime.runId !==
+            runId ||
+          runtime.benchmarkId !==
+            benchmarkId
+        ) {
+          continue;
+        }
+
+        const runSummary = {
+          runId,
+          benchmarkId,
+          model:
+            runStart.model ??
+            runtime.model ??
+            null,
+          completedAt:
+            runtime.completedAt ??
+            null,
+          total:
+            evaluation.total ??
+            null,
+          hasFinalEvaluation:
+            evaluationPath ===
+            finalEvaluationPath
+        };
+
+        if (
+          benchmarkId ===
+          "cart-total-v1"
+        ) {
+          runSummary.explicitRequirements =
+            evaluation.hiddenTests
+              ?.explicitRequirements ??
+            null;
+
+          runSummary.engineeringRobustness =
+            evaluation.hiddenTests
+              ?.engineeringRobustness ??
+            null;
+        }
+
+        runs.push(
+          sanitizePublicValue(
+            runSummary
+          )
+        );
+      } catch {
+        continue;
+      }
+    }
+  }
+
+  runs.sort(
+    (left, right) =>
+      String(
+        right.completedAt ?? ""
+      ).localeCompare(
+        String(
+          left.completedAt ?? ""
+        )
+      )
+  );
+
+  return runs;
+}
+
+function loadPersistedRun(
+  benchmarkId,
+  runId
+) {
+  if (
+    typeof benchmarkId !== "string" ||
+    benchmarkId.trim() === ""
+  ) {
+    throw new TypeError(
+      "benchmarkId must be a non-empty string"
+    );
+  }
+
+  if (
+    typeof runId !== "string" ||
+    runId.trim() === ""
+  ) {
+    throw new TypeError(
+      "runId must be a non-empty string"
+    );
+  }
+
+  const normalizedBenchmarkId =
+    benchmarkId.trim();
+
+  const normalizedRunId =
+    runId.trim();
+
+  const registered =
+    loadBenchmarks()
+      .some(
+        (benchmark) =>
+          benchmark.id ===
+          normalizedBenchmarkId
+      );
+
+  if (!registered) {
+    throw new Error(
+      "Benchmark is not registered"
+    );
+  }
+
+  if (
+    normalizedRunId === "." ||
+    normalizedRunId === ".." ||
+    !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(
+      normalizedRunId
+    )
+  ) {
+    throw new Error(
+      "runId contains invalid path characters"
+    );
+  }
+
+  const benchmarkResultsDir =
+    path.resolve(
+      RESULTS_DIR,
+      normalizedBenchmarkId
+    );
+
+  const runDir =
+    path.resolve(
+      benchmarkResultsDir,
+      normalizedRunId
+    );
+
+  const relative =
+    path.relative(
+      benchmarkResultsDir,
+      runDir
+    );
+
+  if (
+    relative === "" ||
+    relative.startsWith("..") ||
+    path.isAbsolute(relative)
+  ) {
+    throw new Error(
+      "runId resolves outside the benchmark results directory"
+    );
+  }
+
+  if (
+    !fs.existsSync(runDir) ||
+    !fs.statSync(runDir).isDirectory()
+  ) {
+    throw new Error(
+      "Benchmark run does not exist"
+    );
+  }
+
+  const runStartPath =
+    path.join(
+      runDir,
+      "run-start.json"
+    );
+
+  const runtimePath =
+    path.join(
+      runDir,
+      "runtime.json"
+    );
+
+  const finalEvaluationPath =
+    path.join(
+      runDir,
+      "evaluation-final.json"
+    );
+
+  const mechanicalEvaluationPath =
+    path.join(
+      runDir,
+      "evaluation.json"
+    );
+
+  const evaluationErrorPath =
+    path.join(
+      runDir,
+      "evaluation-error.json"
+    );
+
+  if (
+    !fs.existsSync(runStartPath) ||
+    !fs.existsSync(runtimePath)
+  ) {
+    throw new Error(
+      "Persisted benchmark run is incomplete"
+    );
+  }
+
+  const runStart =
+    readPersistedJson(
+      runStartPath
+    );
+
+  const runtime =
+    readPersistedJson(
+      runtimePath
+    );
+
+  if (
+    runStart.runId !==
+      normalizedRunId ||
+    runStart.benchmarkId !==
+      normalizedBenchmarkId ||
+    runtime.runId !==
+      normalizedRunId ||
+    runtime.benchmarkId !==
+      normalizedBenchmarkId
+  ) {
+    throw new Error(
+      "Persisted benchmark run metadata does not match its location"
+    );
+  }
+
+  let evaluation = null;
+
+  if (
+    fs.existsSync(
+      finalEvaluationPath
+    )
+  ) {
+    evaluation =
+      readPersistedJson(
+        finalEvaluationPath
+      );
+  } else if (
+    fs.existsSync(
+      mechanicalEvaluationPath
+    )
+  ) {
+    evaluation =
+      readPersistedJson(
+        mechanicalEvaluationPath
+      );
+  }
+
+  const evaluationError =
+    fs.existsSync(
+      evaluationErrorPath
+    )
+      ? readPersistedJson(
+          evaluationErrorPath
+        )
+      : null;
+
+  return createPublicBenchmarkResult({
+    runId:
+      normalizedRunId,
+    benchmarkId:
+      normalizedBenchmarkId,
+    model:
+      runStart.model ??
+      runtime.model ??
+      null,
+    validation:
+      runtime.validation ??
+      null,
+    performance:
+      runtime.performance ??
+      null,
+    evaluation,
+    evaluationError
+  });
+}
+
+async function handleLoadRun(
+  req,
+  res
+) {
+  const contentType =
+    String(
+      req.headers["content-type"] || ""
+    )
+      .split(";")[0]
+      .trim()
+      .toLowerCase();
+
+  if (contentType !== "application/json") {
+    sendJson(
+      res,
+      415,
+      {
+        error:
+          "Content-Type must be application/json"
+      }
+    );
+
+    return;
+  }
+
+  let body;
+
+  try {
+    body =
+      await readJsonBody(req);
+  } catch (error) {
+    let statusCode = 400;
+
+    if (
+      error.code ===
+      "REQUEST_BODY_TOO_LARGE"
+    ) {
+      statusCode = 413;
+    }
+
+    sendJson(
+      res,
+      statusCode,
+      {
+        error:
+          "Invalid load-run request",
+        detail:
+          sanitizePublicValue(
+            error.message
+          )
+      }
+    );
+
+    return;
+  }
+
+  if (
+    !body ||
+    typeof body !== "object" ||
+    Array.isArray(body)
+  ) {
+    sendJson(
+      res,
+      400,
+      {
+        error:
+          "Request body must be a JSON object"
+      }
+    );
+
+    return;
+  }
+
+  try {
+    const result =
+      loadPersistedRun(
+        body.benchmarkId,
+        body.runId
+      );
+
+    sendJson(
+      res,
+      200,
+      result
+    );
+  } catch (error) {
+    let statusCode = 500;
+
+    if (
+      error instanceof TypeError ||
+      /invalid path/i.test(
+        error.message
+      ) ||
+      /not registered/i.test(
+        error.message
+      ) ||
+      /resolves outside/i.test(
+        error.message
+      )
+    ) {
+      statusCode = 400;
+    } else if (
+      /run does not exist/i.test(
+        error.message
+      )
+    ) {
+      statusCode = 404;
+    } else if (
+      /incomplete/i.test(
+        error.message
+      ) ||
+      /does not match/i.test(
+        error.message
+      )
+    ) {
+      statusCode = 409;
+    }
+
+    sendJson(
+      res,
+      statusCode,
+      {
+        error:
+          "Unable to load benchmark run",
+        detail:
+          sanitizePublicValue(
+            error.message
+          )
+      }
+    );
+  }
+}
+
+function handleRuns(res) {
+  try {
+    sendJson(
+      res,
+      200,
+      {
+        runs:
+          loadPersistedRuns()
+      }
+    );
+  } catch (error) {
+    sendJson(
+      res,
+      500,
+      {
+        error:
+          "Unable to discover benchmark runs",
+        detail:
+          sanitizePublicValue(
+            error.message
+          )
+      }
+    );
+  }
+}
+
 function handleBenchmarks(res) {
   try {
     const benchmarks = loadBenchmarks();
@@ -701,8 +1265,18 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  if (req.url === "/api/runs" && req.method === "GET") {
+    handleRuns(res);
+    return;
+  }
+
   if (req.url === "/api/run-benchmark" && req.method === "POST") {
     await handleRunBenchmark(req, res);
+    return;
+  }
+
+  if (req.url === "/api/load-run" && req.method === "POST") {
+    await handleLoadRun(req, res);
     return;
   }
 
